@@ -1,0 +1,13 @@
+[Unit]
+Description=Cloudflare Tunnel for public-http-server
+After=network-online.target public-http-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run public-http-server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

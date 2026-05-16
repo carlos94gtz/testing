@@ -1,0 +1,12 @@
+{
+  "name": "public-http-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small dependency-free HTTP server that can run locally or on an internet-accessible host.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

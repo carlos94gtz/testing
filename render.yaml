@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: public-http-server
+    runtime: node
+    rootDir: public-http-server
+    plan: starter
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: SERVICE_NAME
+        value: public-http-server
+      - key: API_TOKEN
+        sync: false

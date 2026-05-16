@@ -1,0 +1,21 @@
+[Unit]
+Description=Public HTTP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/public-http-server
+EnvironmentFile=/etc/public-http-server.env
+ExecStart=/usr/bin/node /opt/public-http-server/server.js
+Restart=always
+RestartSec=5
+User=public-http
+Group=public-http
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

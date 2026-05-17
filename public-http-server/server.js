@@ -203,6 +203,10 @@ function getDatabasePool() {
   return pgPool;
 }
 
+function messageStorageMode() {
+  return databaseUrl ? "postgres" : "file";
+}
+
 async function ensureDatabase() {
   const pool = getDatabasePool();
   if (!pool) {
@@ -456,6 +460,7 @@ const server = http.createServer(async (req, res) => {
     sendSecureJson(req, res, 200, {
       ok: true,
       service: serviceName,
+      messageStorage: messageStorageMode(),
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
     });

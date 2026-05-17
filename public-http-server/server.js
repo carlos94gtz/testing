@@ -10,9 +10,11 @@ const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 3000);
 const apiToken = process.env.API_TOKEN || "";
 const serviceName = process.env.SERVICE_NAME || "public-http-server";
+const databaseUrl = process.env.DATABASE_URL || "";
 const messagesFile = process.env.MESSAGES_FILE || path.join(os.tmpdir(), "public-http-server-messages.jsonl");
 const maxBodyBytes = 20_000;
 const recentSubmissions = new Map();
+let pgPool = null;
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   console.error(`Invalid PORT: ${process.env.PORT}`);
@@ -161,36 +163,100 @@ function cleanText(value, maxLength) {
     .slice(0, maxLength);
 }
 
-function saveMessage(req, input) {
+function normalizeMessage(req, input) {
   const name = cleanText(input.name, 80) || "Anonymous";
   const email = cleanText(input.email, 160);
   const message = cleanText(input.message, 2_000);
   const website = cleanText(input.website, 200);
 
   if (website) {
-    return { accepted: true, spam: true };
+    return { accepted: true, spam: true, record: null };
   }
 
   if (!message || message.length < 2) {
     return { accepted: false, error: "Message is required." };
   }
 
-  const record = {
-    id: randomUUID(),
-    name,
-    email,
-    message,
-    ip: clientIp(req),
-    userAgent: cleanText(req.headers["user-agent"], 300),
-    createdAt: new Date().toISOString(),
+  return {
+    accepted: true,
+    record: {
+      id: randomUUID(),
+      name,
+      email,
+      message,
+      ip: clientIp(req),
+      userAgent: cleanText(req.headers["user-agent"], 300),
+      createdAt: new Date().toISOString(),
+    },
   };
-
-  fs.mkdirSync(path.dirname(messagesFile), { recursive: true });
-  fs.appendFileSync(messagesFile, `${JSON.stringify(record)}\n`, "utf8");
-  return { accepted: true, record };
 }
 
-function readMessages(limit = 100) {
+function getDatabasePool() {
+  if (!databaseUrl) return null;
+  if (pgPool) return pgPool;
+
+  const { Pool } = require("pg");
+  pgPool = new Pool({
+    connectionString: databaseUrl,
+    max: 5,
+  });
+  return pgPool;
+}
+
+async function ensureDatabase() {
+  const pool = getDatabasePool();
+  if (!pool) {
+    console.log(`Message storage: file (${messagesFile})`);
+    return;
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id uuid PRIMARY KEY,
+      name text NOT NULL,
+      email text,
+      message text NOT NULL,
+      ip text,
+      user_agent text,
+      created_at timestamptz NOT NULL
+    )
+  `);
+  console.log("Message storage: Postgres");
+}
+
+async function saveMessage(req, input) {
+  const result = normalizeMessage(req, input);
+  if (!result.accepted || !result.record) return result;
+
+  const pool = getDatabasePool();
+  if (pool) {
+    const record = result.record;
+    await pool.query(
+      `INSERT INTO messages (id, name, email, message, ip, user_agent, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [record.id, record.name, record.email, record.message, record.ip, record.userAgent, record.createdAt]
+    );
+    return result;
+  }
+
+  fs.mkdirSync(path.dirname(messagesFile), { recursive: true });
+  fs.appendFileSync(`${messagesFile}`, `${JSON.stringify(result.record)}\n`, "utf8");
+  return result;
+}
+
+async function readMessages(limit = 100) {
+  const pool = getDatabasePool();
+  if (pool) {
+    const result = await pool.query(
+      `SELECT id, name, email, message, created_at AS "createdAt"
+       FROM messages
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return result.rows;
+  }
+
   if (!fs.existsSync(messagesFile)) return [];
 
   return fs
@@ -418,8 +484,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" || req.method === "HEAD") {
       if (!requireApiToken(req, res)) return;
 
+      const messages = await readMessages(100);
       sendSecureJson(req, res, 200, {
-        messages: readMessages(100).map(({ ip, userAgent, ...message }) => message),
+        messages: messages.map((message) => ({
+          id: message.id,
+          name: message.name,
+          email: message.email,
+          message: message.message,
+          createdAt: message.createdAt,
+        })),
       });
       return;
     }
@@ -432,7 +505,7 @@ const server = http.createServer(async (req, res) => {
 
       try {
         const input = await parseBody(req);
-        const result = saveMessage(req, input);
+        const result = await saveMessage(req, input);
         if (!result.accepted) {
           sendSecureJson(req, res, 400, { error: result.error });
           return;
@@ -457,7 +530,7 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const input = await parseBody(req);
-      const result = saveMessage(req, input);
+      const result = await saveMessage(req, input);
       if (!result.accepted) {
         redirect(res, `/?error=${encodeURIComponent(result.error)}`);
         return;
@@ -489,14 +562,21 @@ server.keepAliveTimeout = 61_000;
 server.headersTimeout = 65_000;
 server.requestTimeout = 30_000;
 
-server.listen(port, host, () => {
-  const addresses = localAddresses();
-  console.log(`Server listening on http://${host}:${port}`);
-  console.log(`Local URL: http://localhost:${port}`);
-  for (const address of addresses) {
-    console.log(`LAN URL: http://${address}:${port}`);
-  }
-});
+ensureDatabase()
+  .then(() => {
+    server.listen(port, host, () => {
+      const addresses = localAddresses();
+      console.log(`Server listening on http://${host}:${port}`);
+      console.log(`Local URL: http://localhost:${port}`);
+      for (const address of addresses) {
+        console.log(`LAN URL: http://${address}:${port}`);
+      }
+    });
+  })
+  .catch((err) => {
+    console.error(`Failed to initialize message storage: ${err.message}`);
+    process.exit(1);
+  });
 
 process.on("SIGTERM", () => server.close(() => process.exit(0)));
 process.on("SIGINT", () => server.close(() => process.exit(0)));

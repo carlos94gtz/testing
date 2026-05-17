@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: public-http-server
     plan: free
-    buildCommand: ""
+    buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
@@ -16,3 +16,13 @@ services:
         value: public-http-server
       - key: API_TOKEN
         sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: public-http-server-db
+          property: connectionString
+
+databases:
+  - name: public-http-server-db
+    plan: free
+    databaseName: public_http_server
+    user: public_http_server

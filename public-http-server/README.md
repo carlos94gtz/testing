@@ -54,7 +54,7 @@ These are production-capable URLs owned by the hosting provider. You can add you
 
 ### Render
 
-The repository root includes `render.yaml`. It uses `rootDir: public-http-server`, so Render builds and runs this folder while still finding the Blueprint at the repo root.
+The repository root includes `render.yaml`. It uses `rootDir: public-http-server`, so Render builds and runs this folder while still finding the Blueprint at the repo root. The Blueprint also creates a free Render Postgres database and passes its connection string to the app as `DATABASE_URL`.
 
 1. Push this project to a Git repository.
 2. In Render, create a new Blueprint or Web Service from the repository.
@@ -64,7 +64,7 @@ The repository root includes `render.yaml`. It uses `rootDir: public-http-server
 
 Render expects web services to listen on the configured `PORT`; this template uses `10000`.
 
-The Blueprint uses Render's `free` plan so you can deploy without paying. Free web services can spin down after inactivity; switch `plan` in the root `render.yaml` to `starter` or higher when you need always-on production behavior.
+The Blueprint uses Render's `free` plan so you can deploy without paying. Free web services can spin down after inactivity, and free Postgres databases are for testing. Switch `plan` in the root `render.yaml` to paid plans when you need always-on production behavior and durable long-term storage.
 
 ### Railway
 
@@ -207,7 +207,7 @@ curl "https://public-http-server.onrender.com/api/messages" \
   -H "Authorization: Bearer YOUR_API_TOKEN"
 ```
 
-Messages are stored in a JSONL file on the running server instance. On Render's free plan, local filesystem data is not a durable database, so use this as a lightweight inbox. For long-term production storage, add a database or email/webhook delivery.
+Messages are stored in Postgres when `DATABASE_URL` is set. Without `DATABASE_URL`, messages fall back to a local JSONL file for development.
 
 ## Stop The Current Demo Tunnel On This Mac
 

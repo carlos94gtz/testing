@@ -3,7 +3,7 @@ services:
     name: public-http-server
     runtime: node
     rootDir: public-http-server
-    plan: starter
+    plan: free
     buildCommand: ""
     startCommand: node server.js
     healthCheckPath: /health

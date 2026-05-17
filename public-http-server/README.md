@@ -59,7 +59,7 @@ The repository root includes `render.yaml`. It uses `rootDir: public-http-server
 
 Render expects web services to listen on the configured `PORT`; this template uses `10000`.
 
-The Blueprint uses Render's `starter` plan so the service is suitable for always-on production use. Change `plan` in the root `render.yaml` if you want a different instance size.
+The Blueprint uses Render's `free` plan so you can deploy without paying. Free web services can spin down after inactivity; switch `plan` in the root `render.yaml` to `starter` or higher when you need always-on production behavior.
 
 ### Railway
 

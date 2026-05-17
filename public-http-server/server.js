@@ -28,7 +28,7 @@ function securityHeaders(req) {
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   };
 
   if (forwardedProto === "https") {
@@ -417,6 +417,257 @@ function homePage(url) {
 </html>`;
 }
 
+function adminPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Messages Admin</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f6f8fa;
+      color: #18212b;
+    }
+    main {
+      width: min(980px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 36px 0;
+    }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 8px 0 0;
+      color: #4a5563;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto auto;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    input,
+    button {
+      box-sizing: border-box;
+      border-radius: 8px;
+      padding: 11px 13px;
+      font: inherit;
+    }
+    input {
+      width: 100%;
+      border: 1px solid #c9d2dc;
+      background: #ffffff;
+      color: #17202a;
+    }
+    button {
+      border: 0;
+      background: #155e75;
+      color: white;
+      font-weight: 750;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button.secondary {
+      background: #465363;
+    }
+    .notice {
+      margin: 0 0 16px;
+      border-radius: 8px;
+      padding: 11px 13px;
+      background: #e0f2fe;
+      color: #0c4a6e;
+      font-weight: 650;
+    }
+    .notice.error {
+      background: #fee2e2;
+      color: #7f1d1d;
+    }
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+    article {
+      border: 1px solid #d7dee7;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 16px;
+    }
+    article header {
+      display: block;
+      margin: 0 0 8px;
+    }
+    .name {
+      font-weight: 800;
+    }
+    .meta {
+      color: #647084;
+      font-size: 0.92rem;
+      overflow-wrap: anywhere;
+    }
+    .message {
+      margin-top: 10px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 680px) {
+      header {
+        display: block;
+      }
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #101418;
+        color: #f5f7fa;
+      }
+      p, .meta {
+        color: #bac6d3;
+      }
+      input, article {
+        border-color: #3c4652;
+        background: #151b22;
+        color: #f5f7fa;
+      }
+      .notice {
+        background: #113548;
+        color: #bae6fd;
+      }
+      .notice.error {
+        background: #3b1414;
+        color: #fecaca;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Messages</h1>
+        <p>Enter your API token to view submitted messages.</p>
+      </div>
+    </header>
+    <section class="toolbar">
+      <input id="token" type="password" autocomplete="current-password" placeholder="API token">
+      <button id="load" type="button">Load messages</button>
+      <button id="clear" class="secondary" type="button">Forget token</button>
+    </section>
+    <div id="notice" class="notice">Token stays in this browser session only.</div>
+    <section id="messages" class="list"></section>
+  </main>
+  <script>
+    const tokenInput = document.getElementById("token");
+    const loadButton = document.getElementById("load");
+    const clearButton = document.getElementById("clear");
+    const notice = document.getElementById("notice");
+    const list = document.getElementById("messages");
+
+    tokenInput.value = sessionStorage.getItem("apiToken") || "";
+
+    function setNotice(text, isError = false) {
+      notice.textContent = text;
+      notice.className = isError ? "notice error" : "notice";
+    }
+
+    function formatDate(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value || "";
+      return date.toLocaleString();
+    }
+
+    function renderMessages(messages) {
+      list.textContent = "";
+      if (!messages.length) {
+        setNotice("No messages yet.");
+        return;
+      }
+
+      setNotice(messages.length + " message" + (messages.length === 1 ? "" : "s") + " loaded.");
+      for (const message of messages) {
+        const item = document.createElement("article");
+        const header = document.createElement("header");
+        const name = document.createElement("div");
+        const meta = document.createElement("div");
+        const body = document.createElement("div");
+
+        name.className = "name";
+        meta.className = "meta";
+        body.className = "message";
+
+        name.textContent = message.name || "Anonymous";
+        meta.textContent = [message.email, formatDate(message.createdAt)].filter(Boolean).join(" | ");
+        body.textContent = message.message || "";
+
+        header.append(name, meta);
+        item.append(header, body);
+        list.append(item);
+      }
+    }
+
+    async function loadMessages() {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        setNotice("Enter your API token first.", true);
+        return;
+      }
+
+      sessionStorage.setItem("apiToken", token);
+      setNotice("Loading messages...");
+      list.textContent = "";
+
+      try {
+        const response = await fetch("/api/messages", {
+          headers: {
+            authorization: "Bearer " + token,
+          },
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Request failed");
+        }
+
+        renderMessages(data.messages || []);
+      } catch (err) {
+        setNotice(err.message || "Could not load messages.", true);
+      }
+    }
+
+    loadButton.addEventListener("click", loadMessages);
+    tokenInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") loadMessages();
+    });
+    clearButton.addEventListener("click", () => {
+      sessionStorage.removeItem("apiToken");
+      tokenInput.value = "";
+      list.textContent = "";
+      setNotice("Token removed from this browser session.");
+    });
+  </script>
+</body>
+</html>`;
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.url.length > 2048) {
     sendSecureJson(req, res, 414, {
@@ -554,6 +805,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     sendHtml(req, res, 200, homePage(url));
+    return;
+  }
+
+  if (url.pathname === "/admin") {
+    if (!["GET", "HEAD"].includes(req.method)) {
+      sendSecureJson(req, res, 405, { error: "Method not allowed" });
+      return;
+    }
+
+    sendHtml(req, res, 200, adminPage());
     return;
   }
 

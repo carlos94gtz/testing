@@ -10,6 +10,7 @@ A small dependency-free Node.js HTTP server that is ready to run behind a produc
 - `POST /messages` - public HTML form submission endpoint
 - `POST /api/messages` - public JSON message submission endpoint
 - `GET /api/messages` - token-protected list of recent messages
+- `/admin` - browser page for viewing messages with your API token
 
 If `API_TOKEN` is set, protected API routes require:
 
@@ -206,6 +207,14 @@ Read recent messages with your API token:
 curl "https://public-http-server.onrender.com/api/messages" \
   -H "Authorization: Bearer YOUR_API_TOKEN"
 ```
+
+Or open the browser admin page:
+
+```text
+https://public-http-server.onrender.com/admin
+```
+
+Enter your API token there to load messages. The token is stored only in the browser session.
 
 Messages are stored in Postgres when `DATABASE_URL` is set. Without `DATABASE_URL`, messages fall back to a local JSONL file for development.
 

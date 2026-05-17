@@ -7,12 +7,17 @@ A small dependency-free Node.js HTTP server that is ready to run behind a produc
 - `/` - simple HTML status page
 - `/health` - JSON health check
 - `/api/hello?name=Jose` - JSON greeting
+- `POST /messages` - public HTML form submission endpoint
+- `POST /api/messages` - public JSON message submission endpoint
+- `GET /api/messages` - token-protected list of recent messages
 
-If `API_TOKEN` is set, `/api/*` routes require:
+If `API_TOKEN` is set, protected API routes require:
 
 ```bash
 Authorization: Bearer <API_TOKEN>
 ```
+
+The public message form does not require a token.
 
 ## Run Locally
 
@@ -178,6 +183,31 @@ Expected response:
   "timestamp": "2026-05-16T00:00:00.000Z"
 }
 ```
+
+## Message Submissions
+
+External users can visit the home page and submit the form:
+
+```text
+https://public-http-server.onrender.com/
+```
+
+Submit a message with JSON:
+
+```bash
+curl -X POST "https://public-http-server.onrender.com/api/messages" \
+  -H "content-type: application/json" \
+  -d '{"name":"Jose","email":"jose@example.com","message":"Hello from the API"}'
+```
+
+Read recent messages with your API token:
+
+```bash
+curl "https://public-http-server.onrender.com/api/messages" \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+```
+
+Messages are stored in a JSONL file on the running server instance. On Render's free plan, local filesystem data is not a durable database, so use this as a lightweight inbox. For long-term production storage, add a database or email/webhook delivery.
 
 ## Stop The Current Demo Tunnel On This Mac
 
